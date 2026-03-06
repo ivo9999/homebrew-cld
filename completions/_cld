@@ -1,0 +1,65 @@
+#compdef cld
+
+_cld() {
+  local -a subcommands
+  subcommands=(
+    'help:Show usage information'
+    'ls:List active tmux sessions'
+    'status:Show detailed session info'
+    'kill:Kill a specific session'
+    'attach:Attach to a session (partial match)'
+    'clean:Remove worktrees and sessions'
+  )
+
+  _arguments -C \
+    '1: :->first' \
+    '2: :->second' \
+    '3: :->third' \
+    && return
+
+  case "$state" in
+    first)
+      _alternative \
+        'subcommands:subcommand:_describe "subcommand" subcommands' \
+        'directories:repo path:_directories'
+      ;;
+    second)
+      case "$words[2]" in
+        kill)
+          local -a sessions
+          sessions=(${(f)"$(tmux ls -F '#{session_name}' 2>/dev/null)"})
+          _describe 'session' sessions
+          ;;
+        attach)
+          local -a sessions
+          sessions=(${(f)"$(tmux ls -F '#{session_name}' 2>/dev/null)"})
+          _describe 'session' sessions
+          ;;
+        clean)
+          _directories
+          ;;
+        help|ls|status)
+          ;;
+        *)
+          # second arg is branch name — complete git branches
+          local repo_path="${words[2]}"
+          repo_path="${repo_path/#\~/$HOME}"
+          if git -C "$repo_path" rev-parse --git-dir &>/dev/null 2>&1; then
+            local -a branches
+            branches=(${(f)"$(git -C "$repo_path" branch --format='%(refname:short)' 2>/dev/null)"})
+            _describe 'branch' branches
+          fi
+          ;;
+      esac
+      ;;
+    third)
+      case "$words[2]" in
+        clean)
+          _values 'flags' '--all[Remove all worktrees]'
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_cld
