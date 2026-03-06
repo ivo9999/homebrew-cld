@@ -1,8 +1,8 @@
 class Cld < Formula
   desc "Claude Code workspace launcher — tmux sessions with git worktree support"
   homepage "https://github.com/ivo9999/homebrew-cld"
-  url "https://github.com/ivo9999/homebrew-cld/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "fd04c3a1df2925092df67da4d0883aa50638229f253c2f2c3c9fc065481fb077"
+  url "https://github.com/ivo9999/homebrew-cld/archive/refs/tags/v0.2.1.tar.gz"
+  sha256 "2921c22ca7923d7575e80c9125230868683aa9238dc04e39d5058a1e11914ef8"
   license "MIT"
 
   depends_on "tmux"
