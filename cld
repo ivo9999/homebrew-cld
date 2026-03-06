@@ -7,9 +7,11 @@
 #   cld help                                   Show this help message
 #   cld ls                                     List active sessions
 #   cld status                                 Show detailed session info
-#   cld kill <session>                         Kill a specific session
+#   cld kill <session>                         Kill a session (partial match)
 #   cld attach <session>                       Attach to a session (partial match)
 #   cld clean [repo-path] [--all]              Remove worktrees + sessions
+#   cld update                                 Update cld and Claude Code
+#   cld version                                Show version
 #
 # Examples:
 #   cld                                        Current dir, no worktree
@@ -20,13 +22,36 @@
 #   cld ls                                     Show all sessions
 #   cld status                                 Show session details
 #   cld kill ja-auth                           Kill session 'ja-auth'
+#   cld kill ja                                Kill first session matching 'ja'
 #   cld attach ja                              Attach to first session matching 'ja'
 #   cld clean ~/projects/ja                    Interactive cleanup
 #   cld clean ~/projects/ja --all              Remove all worktrees
+#   cld update                                 Update cld + Claude Code
+
+CLD_VERSION="0.1.0"
 
 set -e
 
+# ─── Colors ───────────────────────────────────────────────────────────────
+
+if [ -t 1 ]; then
+  BOLD="\033[1m"
+  DIM="\033[2m"
+  GREEN="\033[32m"
+  YELLOW="\033[33m"
+  RED="\033[31m"
+  CYAN="\033[36m"
+  RESET="\033[0m"
+else
+  BOLD="" DIM="" GREEN="" YELLOW="" RED="" CYAN="" RESET=""
+fi
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
+
+info()  { printf "${CYAN}%s${RESET}\n" "$1"; }
+ok()    { printf "${GREEN}%s${RESET}\n" "$1"; }
+warn()  { printf "${YELLOW}%s${RESET}\n" "$1"; }
+err()   { printf "${RED}%s${RESET}\n" "$1" >&2; }
 
 sanitize_session_name() {
   echo "$1" | sed 's/[\.:]/-/g'
@@ -34,14 +59,14 @@ sanitize_session_name() {
 
 check_deps() {
   if ! command -v tmux &>/dev/null; then
-    echo "Error: tmux is not installed. Install with: brew install tmux"
+    err "Error: tmux is not installed. Install with: brew install tmux"
     exit 1
   fi
 }
 
 check_git_repo() {
   if ! git -C "$1" rev-parse --git-dir &>/dev/null; then
-    echo "Error: '$1' is not a git repository."
+    err "Error: '$1' is not a git repository."
     exit 1
   fi
 }
@@ -50,6 +75,18 @@ show_help() {
   sed -n '/^# Usage:/,/^[^#]/{ /^#/s/^# \{0,1\}//p; }' "$0"
   echo ""
   sed -n '/^# Examples:/,/^[^#]/{ /^#/s/^# \{0,1\}//p; }' "$0"
+}
+
+# Find a tmux session by exact name or partial match
+# Sets FOUND_SESSION on success, returns 1 on failure
+find_session() {
+  local query="$1"
+  if tmux has-session -t "$query" 2>/dev/null; then
+    FOUND_SESSION="$query"
+    return 0
+  fi
+  FOUND_SESSION=$(tmux ls -F '#{session_name}' 2>/dev/null | grep -i "$query" | head -1)
+  [ -n "$FOUND_SESSION" ]
 }
 
 # ─── Subcommands ─────────────────────────────────────────────────────────────
@@ -61,58 +98,75 @@ help|-h|--help)
   show_help
   exit 0
   ;;
+version|-v|--version)
+  echo "cld $CLD_VERSION"
+  exit 0
+  ;;
+update)
+  info "Updating cld..."
+  if brew ls --versions cld &>/dev/null; then
+    brew upgrade cld 2>/dev/null && ok "cld updated." || info "cld already up to date."
+  else
+    curl -fsSL https://raw.githubusercontent.com/ivo9999/homebrew-cld/main/install.sh | bash
+  fi
+  echo ""
+  info "Updating Claude Code..."
+  brew upgrade claude-code 2>/dev/null && ok "Claude Code updated." || info "Claude Code already up to date."
+  exit 0
+  ;;
 ls)
-  tmux ls 2>/dev/null || echo "No active sessions."
+  tmux ls 2>/dev/null || warn "No active sessions."
   exit 0
   ;;
 status)
   if ! tmux ls &>/dev/null; then
-    echo "No active sessions."
+    warn "No active sessions."
     exit 0
   fi
-  printf "%-24s %-8s %-44s %s\n" "SESSION" "PANES" "DIRECTORY" "CLAUDE?"
-  printf "%-24s %-8s %-44s %s\n" "───────" "─────" "─────────" "───────"
+  printf "${BOLD}%-24s %-8s %-44s %s${RESET}\n" "SESSION" "PANES" "DIRECTORY" "CLAUDE?"
+  printf "${DIM}%-24s %-8s %-44s %s${RESET}\n" "───────" "─────" "─────────" "───────"
   tmux ls -F '#{session_name}' 2>/dev/null | while read -r sess; do
     PANES=$(tmux list-panes -t "$sess" 2>/dev/null | wc -l | tr -d ' ')
     DIR=$(tmux display-message -t "$sess" -p '#{pane_current_path}' 2>/dev/null)
-    CLAUDE="no"
-    tmux list-panes -t "$sess" -F '#{pane_current_command}' 2>/dev/null | grep -qi claude && CLAUDE="yes"
-    printf "%-24s %-8s %-44s %s\n" "$sess" "$PANES" "$DIR" "$CLAUDE"
+    CLAUDE_RUNNING="no"
+    if tmux list-panes -t "$sess" -F '#{pane_current_command}' 2>/dev/null | grep -qi claude; then
+      CLAUDE_RUNNING="${GREEN}yes${RESET}"
+    else
+      CLAUDE_RUNNING="${DIM}no${RESET}"
+    fi
+    printf "%-24s %-8s %-44s ${CLAUDE_RUNNING}\n" "$sess" "$PANES" "$DIR"
   done
   exit 0
   ;;
 kill)
   if [ -z "$2" ]; then
-    echo "Usage: cld kill <session-name>"
+    err "Usage: cld kill <session>"
     exit 1
   fi
-  SESSION=$(sanitize_session_name "$2")
-  if tmux has-session -t "$SESSION" 2>/dev/null; then
-    tmux kill-session -t "$SESSION"
-    echo "✖ Killed session '$SESSION'"
+  if find_session "$2"; then
+    tmux kill-session -t "$FOUND_SESSION"
+    ok "✖ Killed session '$FOUND_SESSION'"
   else
-    echo "No session named '$SESSION'."
+    err "No session matching '$2'."
     tmux ls 2>/dev/null || true
   fi
   exit 0
   ;;
 attach)
   if [ -z "$2" ]; then
-    echo "Usage: cld attach <session>"
+    err "Usage: cld attach <session>"
     exit 1
   fi
-  # Try exact match first, then partial
-  if tmux has-session -t "$2" 2>/dev/null; then
-    tmux attach -t "$2"
-  else
-    MATCH=$(tmux ls -F '#{session_name}' 2>/dev/null | grep -i "$2" | head -1)
-    if [ -n "$MATCH" ]; then
-      echo "⏭  Attaching to '$MATCH'..."
-      tmux attach -t "$MATCH"
+  if find_session "$2"; then
+    info "⏭  Attaching to '$FOUND_SESSION'..."
+    if [ -n "$TMUX" ]; then
+      tmux switch-client -t "$FOUND_SESSION"
     else
-      echo "No session matching '$2'."
-      tmux ls 2>/dev/null || true
+      tmux attach -t "$FOUND_SESSION"
     fi
+  else
+    err "No session matching '$2'."
+    tmux ls 2>/dev/null || true
   fi
   exit 0
   ;;
@@ -124,12 +178,12 @@ clean)
   WORKTREE_BASE="$(dirname "$REPO_PATH")/${REPO_NAME}-worktrees"
 
   cd "$REPO_PATH"
-  echo "🌿 Worktrees for $REPO_NAME:"
+  info "🌿 Worktrees for $REPO_NAME:"
   git worktree list
   echo ""
 
   if [ ! -d "$WORKTREE_BASE" ]; then
-    echo "No worktrees to clean."
+    warn "No worktrees to clean."
     exit 0
   fi
 
@@ -138,13 +192,13 @@ clean)
       [ ! -d "$dir" ] && continue
       BRANCH_SLUG=$(basename "$dir")
       SESSION=$(sanitize_session_name "${REPO_NAME}-${BRANCH_SLUG}")
-      tmux kill-session -t "$SESSION" 2>/dev/null && echo "  ✖ Session: $SESSION"
+      tmux kill-session -t "$SESSION" 2>/dev/null && warn "  ✖ Session: $SESSION"
       git worktree remove "$dir" --force 2>/dev/null || rm -rf "$dir"
-      echo "  ✖ Worktree: $BRANCH_SLUG"
+      warn "  ✖ Worktree: $BRANCH_SLUG"
     done
     rmdir "$WORKTREE_BASE" 2>/dev/null || true
     git worktree prune
-    echo "✅ Done!"
+    ok "✅ Done!"
   else
     i=1
     DIRS=()
@@ -154,11 +208,11 @@ clean)
       SLUG=$(basename "$dir")
       SESSION=$(sanitize_session_name "${REPO_NAME}-${SLUG}")
       TAG=""
-      tmux has-session -t "$SESSION" 2>/dev/null && TAG=" [tmux]"
-      echo "  $i) $SLUG$TAG"
+      tmux has-session -t "$SESSION" 2>/dev/null && TAG=" ${GREEN}[tmux]${RESET}"
+      printf "  ${BOLD}%d)${RESET} %s%b\n" "$i" "$SLUG" "$TAG"
       i=$((i + 1))
     done
-    [ ${#DIRS[@]} -eq 0 ] && echo "Nothing to clean." && exit 0
+    [ ${#DIRS[@]} -eq 0 ] && warn "Nothing to clean." && exit 0
     echo ""
     read -p "Remove (space-separated numbers, q to quit): " CHOICES
     [ "$CHOICES" = "q" ] && exit 0
@@ -167,12 +221,12 @@ clean)
       [ ! -d "$dir" ] && continue
       SLUG=$(basename "$dir")
       SESSION=$(sanitize_session_name "${REPO_NAME}-${SLUG}")
-      tmux kill-session -t "$SESSION" 2>/dev/null && echo "  ✖ Session: $SESSION"
+      tmux kill-session -t "$SESSION" 2>/dev/null && warn "  ✖ Session: $SESSION"
       git worktree remove "$dir" --force 2>/dev/null || rm -rf "$dir"
-      echo "  ✖ Worktree: $SLUG"
+      warn "  ✖ Worktree: $SLUG"
     done
     git worktree prune
-    echo "✅ Done!"
+    ok "✅ Done!"
   fi
   exit 0
   ;;
@@ -195,16 +249,16 @@ if [ -n "$BRANCH" ]; then
   SESSION_NAME=$(sanitize_session_name "${CUSTOM_SESSION:-${REPO_NAME}-${BRANCH_SLUG}}")
 
   if [ -d "$WORKTREE_PATH" ]; then
-    echo "📂 Worktree exists at $WORKTREE_PATH"
+    info "📂 Worktree exists at $WORKTREE_PATH"
   else
-    echo "🌿 Creating worktree for '$BRANCH'..."
+    info "🌿 Creating worktree for '$BRANCH'..."
     mkdir -p "$WORKTREE_BASE"
     cd "$REPO_PATH"
     if git show-ref --verify --quiet "refs/heads/$BRANCH" 2>/dev/null ||
       git show-ref --verify --quiet "refs/remotes/origin/$BRANCH" 2>/dev/null; then
       git worktree add "$WORKTREE_PATH" "$BRANCH"
     else
-      echo "🆕 New branch '$BRANCH' from HEAD"
+      info "🆕 New branch '$BRANCH' from HEAD"
       git worktree add -b "$BRANCH" "$WORKTREE_PATH"
     fi
   fi
@@ -216,8 +270,12 @@ fi
 
 # Attach if session exists
 if tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
-  echo "⏭  Attaching to '$SESSION_NAME'..."
-  tmux attach -t "$SESSION_NAME"
+  info "⏭  Attaching to '$SESSION_NAME'..."
+  if [ -n "$TMUX" ]; then
+    tmux switch-client -t "$SESSION_NAME"
+  else
+    tmux attach -t "$SESSION_NAME"
+  fi
   exit 0
 fi
 
@@ -229,10 +287,10 @@ fi
 # │                    │  (35%)   │
 # └────────────────────┴──────────┘
 
-echo "🔄 Updating Claude Code..."
+info "🔄 Updating Claude Code..."
 brew upgrade claude-code 2>/dev/null || true
 
-echo "🚀 Starting '$SESSION_NAME' in $WORK_DIR"
+ok "🚀 Starting '$SESSION_NAME' in $WORK_DIR"
 
 tmux new-session -d -s "$SESSION_NAME" -c "$WORK_DIR" -x "$(tput cols)" -y "$(tput lines)"
 tmux rename-window -t "$SESSION_NAME" "dev"
@@ -249,4 +307,8 @@ tmux set-option -t "$SESSION_NAME" pane-border-status top
 tmux set-option -t "$SESSION_NAME" pane-border-format " #{pane_title} "
 tmux send-keys -t "$SESSION_NAME:dev.0" "claude --dangerously-skip-permissions" Enter
 tmux select-pane -t "$SESSION_NAME:dev.0"
-tmux attach -t "$SESSION_NAME"
+if [ -n "$TMUX" ]; then
+  tmux switch-client -t "$SESSION_NAME"
+else
+  tmux attach -t "$SESSION_NAME"
+fi

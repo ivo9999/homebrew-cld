@@ -38,9 +38,11 @@ cld [repo-path] [branch] [session-name]   Open a project (default: current dir)
 cld help                                   Show help
 cld ls                                     List active sessions
 cld status                                 Detailed session info
-cld kill <session>                         Kill a session
-cld attach <session>                       Attach by partial name match
+cld kill <session>                         Kill a session (partial match)
+cld attach <session>                       Attach to a session (partial match)
 cld clean [repo-path] [--all]              Remove worktrees + sessions
+cld update                                 Update cld and Claude Code
+cld version                                Show version
 ```
 
 ## Examples
@@ -56,12 +58,13 @@ cld ~/projects/myapp feature/auth my-auth  # Custom session name
 cld ls                                     # List sessions
 cld status                                 # Pane count, directory, claude running?
 cld attach myapp                           # Attach by partial match
-cld kill my-auth                           # Kill a session
+cld kill my                                # Kill first session matching 'my'
 ```
 
 ```bash
 cld clean ~/projects/myapp                 # Interactive worktree cleanup
 cld clean ~/projects/myapp --all           # Remove all worktrees
+cld update                                 # Update cld + Claude Code
 ```
 
 ## What it does
