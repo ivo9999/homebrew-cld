@@ -64,4 +64,4 @@ _cld() {
   esac
 }
 
-_cld
+compdef _cld cld
