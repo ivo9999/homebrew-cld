@@ -90,3 +90,7 @@ Installed automatically with both Homebrew and the curl installer. Completes sub
 ## License
 
 [MIT](LICENSE)
+
+---
+
+Built with [Claude Code](https://claude.ai/claude-code)
