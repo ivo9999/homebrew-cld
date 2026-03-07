@@ -29,7 +29,7 @@
 #   cld clean ~/projects/ja --all              Remove all worktrees
 #   cld update                                 Update cld + Claude Code
 
-CLD_VERSION="0.2.4"
+CLD_VERSION="0.2.5"
 
 set -e
 
@@ -149,8 +149,29 @@ kill)
       tmux kill-session -t "$CURRENT_SESSION"
       ok "✖ Killed session '$CURRENT_SESSION'"
     else
-      err "Usage: cld kill <session>"
-      exit 1
+      SESSIONS=()
+      while IFS= read -r s; do
+        [ -n "$s" ] && SESSIONS+=("$s")
+      done < <(tmux ls -F '#{session_name}' 2>/dev/null)
+      if [ ${#SESSIONS[@]} -eq 0 ]; then
+        warn "No active sessions."
+        exit 0
+      fi
+      echo "Active sessions:"
+      for i in "${!SESSIONS[@]}"; do
+        printf "  ${BOLD}%d)${RESET} %s\n" "$((i + 1))" "${SESSIONS[$i]}"
+      done
+      echo ""
+      read -p "Kill (number, q to quit): " CHOICE
+      [ "$CHOICE" = "q" ] && exit 0
+      if [[ "$CHOICE" =~ ^[0-9]+$ ]] && [ "$CHOICE" -ge 1 ] && [ "$CHOICE" -le ${#SESSIONS[@]} ]; then
+        TARGET="${SESSIONS[$((CHOICE - 1))]}"
+        tmux kill-session -t "$TARGET"
+        ok "✖ Killed session '$TARGET'"
+      else
+        err "Invalid choice."
+        exit 1
+      fi
     fi
   elif find_session "$2"; then
     if [ -n "$TMUX" ] && [ "$(tmux display-message -p '#{session_name}')" = "$FOUND_SESSION" ]; then
