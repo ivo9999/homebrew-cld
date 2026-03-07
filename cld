@@ -7,7 +7,7 @@
 #   cld help                                   Show this help message
 #   cld ls                                     List active sessions
 #   cld status                                 Show detailed session info
-#   cld kill <session>                         Kill a session (partial match)
+#   cld kill [session]                         Kill a session (current if inside tmux)
 #   cld attach <session>                       Attach to a session (partial match)
 #   cld clean [repo-path] [--all]              Remove worktrees + sessions
 #   cld update                                 Update cld and Claude Code
@@ -21,6 +21,7 @@
 #   cld help                                   Print usage
 #   cld ls                                     Show all sessions
 #   cld status                                 Show session details
+#   cld kill                                   Kill current session (from inside tmux)
 #   cld kill ja-auth                           Kill session 'ja-auth'
 #   cld kill ja                                Kill first session matching 'ja'
 #   cld attach ja                              Attach to first session matching 'ja'
@@ -28,7 +29,7 @@
 #   cld clean ~/projects/ja --all              Remove all worktrees
 #   cld update                                 Update cld + Claude Code
 
-CLD_VERSION="0.1.0"
+CLD_VERSION="0.2.3"
 
 set -e
 
@@ -140,10 +141,21 @@ status)
   ;;
 kill)
   if [ -z "$2" ]; then
-    err "Usage: cld kill <session>"
-    exit 1
-  fi
-  if find_session "$2"; then
+    if [ -n "$TMUX" ]; then
+      CURRENT_SESSION=$(tmux display-message -p '#{session_name}')
+      warn "Killing current session '$CURRENT_SESSION'..."
+      tmux switch-client -n 2>/dev/null || tmux detach-client
+      tmux kill-session -t "$CURRENT_SESSION"
+      ok "✖ Killed session '$CURRENT_SESSION'"
+    else
+      err "Usage: cld kill <session>"
+      exit 1
+    fi
+  elif find_session "$2"; then
+    if [ -n "$TMUX" ] && [ "$(tmux display-message -p '#{session_name}')" = "$FOUND_SESSION" ]; then
+      warn "Killing current session '$FOUND_SESSION'..."
+      tmux switch-client -n 2>/dev/null || tmux detach-client
+    fi
     tmux kill-session -t "$FOUND_SESSION"
     ok "✖ Killed session '$FOUND_SESSION'"
   else

@@ -38,7 +38,7 @@ cld [repo-path] [branch] [session-name]   Open a project (default: current dir)
 cld help                                   Show help
 cld ls                                     List active sessions
 cld status                                 Detailed session info
-cld kill <session>                         Kill a session (partial match)
+cld kill [session]                         Kill a session (current if inside tmux)
 cld attach <session>                       Attach to a session (partial match)
 cld clean [repo-path] [--all]              Remove worktrees + sessions
 cld update                                 Update cld and Claude Code
@@ -58,6 +58,7 @@ cld ~/projects/myapp feature/auth my-auth  # Custom session name
 cld ls                                     # List sessions
 cld status                                 # Pane count, directory, claude running?
 cld attach myapp                           # Attach by partial match
+cld kill                                   # Kill current session (from inside tmux)
 cld kill my                                # Kill first session matching 'my'
 ```
 
