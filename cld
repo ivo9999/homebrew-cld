@@ -29,7 +29,7 @@
 #   cld clean ~/projects/ja --all              Remove all worktrees
 #   cld update                                 Update cld + Claude Code
 
-CLD_VERSION="0.2.7"
+CLD_VERSION="0.2.8"
 
 set -e
 
@@ -321,7 +321,7 @@ brew upgrade claude-code 2>/dev/null || true
 ok "🚀 Starting '$SESSION_NAME' in $WORK_DIR"
 
 tmux new-session -d -s "$SESSION_NAME" -c "$WORK_DIR" -x "$(tput cols)" -y "$(tput lines)"
-tmux rename-window -t "$SESSION_NAME" "dev"
+tmux rename-window -t "$SESSION_NAME" "$REPO_NAME"
 tmux set-option -t "$SESSION_NAME" allow-rename off
 tmux split-window -h -t "$SESSION_NAME" -c "$WORK_DIR" -p 35
 tmux split-window -v -t "$SESSION_NAME" -c "$WORK_DIR"
