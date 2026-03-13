@@ -29,7 +29,7 @@
 #   cld clean ~/projects/ja --all              Remove all worktrees
 #   cld update                                 Update cld + Claude Code
 
-CLD_VERSION="0.2.10"
+CLD_VERSION="0.2.11"
 
 set -e
 
@@ -330,14 +330,13 @@ tmux set-option -t "$SESSION_NAME" history-limit 50000
 tmux set-option -t "$SESSION_NAME" mode-keys vi
 tmux set-option -t "$SESSION_NAME" set-titles on
 tmux set-option -t "$SESSION_NAME" set-titles-string "$REPO_NAME"
-WINDOW_NAME="$REPO_NAME"
-tmux select-pane -t "$SESSION_NAME:$WINDOW_NAME.0" -T "claude"
-tmux select-pane -t "$SESSION_NAME:$WINDOW_NAME.1" -T "term"
-tmux select-pane -t "$SESSION_NAME:$WINDOW_NAME.2" -T "term"
+tmux select-pane -t "$SESSION_NAME:0.0" -T "claude"
+tmux select-pane -t "$SESSION_NAME:0.1" -T "term"
+tmux select-pane -t "$SESSION_NAME:0.2" -T "term"
 tmux set-option -t "$SESSION_NAME" pane-border-status top
 tmux set-option -t "$SESSION_NAME" pane-border-format " #{pane_title} "
-tmux send-keys -t "$SESSION_NAME:$WINDOW_NAME.0" "claude --dangerously-skip-permissions" Enter
-tmux select-pane -t "$SESSION_NAME:$WINDOW_NAME.0"
+tmux send-keys -t "$SESSION_NAME:0.0" "claude --dangerously-skip-permissions" Enter
+tmux select-pane -t "$SESSION_NAME:0.0"
 if [ -n "$TMUX" ]; then
   tmux switch-client -t "$SESSION_NAME"
 else
