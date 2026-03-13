@@ -29,7 +29,7 @@
 #   cld clean ~/projects/ja --all              Remove all worktrees
 #   cld update                                 Update cld + Claude Code
 
-CLD_VERSION="0.2.9"
+CLD_VERSION="0.2.10"
 
 set -e
 
@@ -328,6 +328,8 @@ tmux split-window -v -t "$SESSION_NAME" -c "$WORK_DIR"
 tmux set-option -t "$SESSION_NAME" mouse on
 tmux set-option -t "$SESSION_NAME" history-limit 50000
 tmux set-option -t "$SESSION_NAME" mode-keys vi
+tmux set-option -t "$SESSION_NAME" set-titles on
+tmux set-option -t "$SESSION_NAME" set-titles-string "$REPO_NAME"
 WINDOW_NAME="$REPO_NAME"
 tmux select-pane -t "$SESSION_NAME:$WINDOW_NAME.0" -T "claude"
 tmux select-pane -t "$SESSION_NAME:$WINDOW_NAME.1" -T "term"
